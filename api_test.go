@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 )
@@ -30,7 +29,6 @@ func getUsers(url string) (int, int, error) {
 
 	users, ok := result["usuarios"].([]interface{})
 	if !ok || len(users) != int(quantity) {
-		fmt.Println(users)
 		return resp.StatusCode, 0, nil
 	}
 
