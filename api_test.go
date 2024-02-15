@@ -1,44 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/brianvoe/gofakeit/v6"
 )
 
-func getUsers(url string) (int, int, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return resp.StatusCode, 0, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return resp.StatusCode, 0, err
-	}
-
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return resp.StatusCode, 0, err
-	}
-
-	quantity, ok := result["quantidade"].(float64)
-	if !ok || quantity < 1 {
-		return resp.StatusCode, 0, nil
-	}
-
-	users, ok := result["usuarios"].([]interface{})
-	if !ok || len(users) != int(quantity) {
-		return resp.StatusCode, 0, nil
-	}
-
-	return resp.StatusCode, int(quantity), nil
-}
+const URL string = "https://serverest.dev/usuarios/"
 
 func TestGetUsers(t *testing.T) {
-	statusCode, quantity, err := getUsers("https://serverest.dev/usuarios")
+	statusCode, quantity, err := getUsers(URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,35 +25,12 @@ func TestGetUsers(t *testing.T) {
 	}
 }
 
-func postUser(url string, body []byte) (int, string, string, error) {
-	req, err := http.Post(url, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return req.StatusCode, "", "", err
-	}
-	defer req.Body.Close()
-	
-	var result map[string]interface{}
-	if err := json.NewDecoder(req.Body).Decode(&result); err != nil {
-		return req.StatusCode, fmt.Sprintf("Ocorreu um problema ao decodificar %s", err), "", err
-	}
-
-	msg := result["message"].(string)
-
-	var id string
-	if idValue, ok := result["_id"].(string); ok  {
-		id = idValue
-	} else {
-		id = ""
-	}
-
-	return req.StatusCode, msg, id, err
-}
 func TestPostUser(t *testing.T) {
 	user := &User{}
 	user.CreateUser(true)
 	userPayload, _ := json.Marshal(user)
 
-	statusCode, msg, id, err := postUser("https://serverest.dev/usuarios", userPayload)
+	statusCode, msg, id, err := postUser(URL, userPayload)
 	
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +59,7 @@ func TestPostDuplicatedUser(t *testing.T) {
 	var err error
 
 	for i := 0; i <= 1; i++ {
-		statusCode, msg, id, err = postUser("https://serverest.dev/usuarios", userPayload)
+		statusCode, msg, id, err = postUser(URL, userPayload)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,5 +75,124 @@ func TestPostDuplicatedUser(t *testing.T) {
 
 	if id != "" {
 		t.Errorf("O esperado era que não houvesse _id gerado, mas foi gerado: %s", id)
+	}
+}
+
+
+//criar usuario com POST, recuperar o id do usuario
+//fazer um GET com id, recuperando as informacoes do usuario e guardando para serem comparadas
+//modificar os dados do usuario, passar para a requisicao PUT
+//fazer assert do status code da request do PUT
+//fazer a chamada com o GET id, pegar as informacoes e comparar com as de antes do PUT 
+func TestPutUser(t *testing.T) {
+	user := &User{}
+	user.CreateUser(true)
+
+	userPayload, _ := json.Marshal(user)
+	_, _, id, err := postUser(URL, userPayload)
+	if err != nil {
+		t.Errorf("Aconteceu o erro %e", err)
+	}
+
+	resp, e := http.Get(URL + id)
+	if e != nil {
+		t.Errorf("Aconteceu o erro %e", e)
+	}
+
+	var dataBefore map[string] interface{}
+	SaveData(resp, &dataBefore)
+	
+	resp.Body.Close()
+
+	user.Email = gofakeit.Email()
+	user.Nome = gofakeit.Name()
+	userPayload, _ = json.Marshal(user)
+
+	resp, err = putUser(URL + id, userPayload)
+	if err != nil {
+		t.Errorf("Error %e", err)
+	}
+	
+	var dataAfter map[string] interface{}
+	SaveData(resp, &dataAfter)
+	
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("O status code esperado para essa requisição era 200, encontrado foi %d", resp.StatusCode)
+	}
+
+	if dataBefore["email"] == dataAfter["email"] {
+		t.Errorf("Houve um erro, o email do usuário era %s e agora era para ser %s", dataBefore["email"], user.Email)
+	}
+
+	if dataBefore["nome"] == dataAfter["nome"] {
+		t.Errorf("Houve um erro, o nome do usuário era %s e agora era para ser %s", dataBefore["nome"], user.Nome)
+	}
+}
+
+// Criar usuario, recuperar ID para usar no delete
+func TestDeleteUser(t *testing.T) {
+	user := User{}
+	user.CreateUser(true)
+
+	userPayload, _ := json.Marshal(user)
+	_, _, id, err := postUser(URL, userPayload)
+	if err != nil {
+		t.Errorf("Aconteceu o erro %e", err)
+	}
+
+	resp, err := deleteUser(URL + id)
+	if err != nil {
+		t.Errorf("ocorreu um erro %e", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("O status esperado para a request era: %d, o que foi encontrado foi: %d", http.StatusOK, resp.StatusCode)
+	}
+	
+	var dataDeleteResponse map[string] interface{}
+	SaveData(resp, &dataDeleteResponse)
+	expectedMsg := "Registro excluído com sucesso"
+
+	if dataDeleteResponse["message"] != expectedMsg {
+		t.Errorf("A mensagem esperada era")
+	}
+
+	resp, err = http.Get(URL + id)
+	if err != nil {
+		t.Errorf("Aconteceu o erro %e", err)
+	}
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("O status code esperado para essa request era: %d, o encontrado foi: %d", http.StatusBadRequest, resp.StatusCode)
+	}
+
+	var dataGetID map[string] interface{}
+	SaveData(resp, &dataGetID)
+
+	expectedMsg = "Usuário não encontrado"
+
+	if dataGetID["message"] != expectedMsg {
+		t.Errorf("A mensagem esperada para essa request era: '%s', a recebida foi: '%s'", expectedMsg, dataGetID["message"])
+	}
+}
+
+func TestDeleteNonExistentUser(t *testing.T) {
+	id := GenerateID(16)
+	
+	resp, err := deleteUser(URL + id)
+	if err != nil {
+		t.Errorf("Ocorreu um erro %e", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("O status code esperado era %d e o que foi retornado foi : %d", http.StatusOK, resp.StatusCode)
+	}
+
+	var data map[string] interface{}
+	SaveData(resp, &data)
+	
+	message := "Nenhum registro excluído"
+	if data["message"] != message {
+		t.Errorf("A mensagem esperada era: '%s'; a obtida foi: %s", message, data["message"])
 	}
 }
