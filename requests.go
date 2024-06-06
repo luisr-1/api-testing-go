@@ -42,7 +42,7 @@ func postUser(url string, body []byte) (int, string, string, error) {
 		return req.StatusCode, "", "", err
 	}
 	defer req.Body.Close()
-	
+
 	var result map[string]interface{}
 	if err := json.NewDecoder(req.Body).Decode(&result); err != nil {
 		return req.StatusCode, fmt.Sprintf("Ocorreu um problema ao decodificar %s", err), "", err
@@ -51,7 +51,7 @@ func postUser(url string, body []byte) (int, string, string, error) {
 	msg := result["message"].(string)
 
 	var id string
-	if idValue, ok := result["_id"].(string); ok  {
+	if idValue, ok := result["_id"].(string); ok {
 		id = idValue
 	} else {
 		id = ""
@@ -67,12 +67,12 @@ func putUser(url string, body []byte) (resp *http.Response, err error) {
 	}
 
 	req.Header.Add("Content-Type", "application/json")
-	
+
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return resp, nil
 }
 
@@ -83,11 +83,11 @@ func deleteUser(url string) (resp *http.Response, err error) {
 	}
 
 	req.Header.Add("Content-Type", "application/json")
-	
+
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return resp, nil
 }

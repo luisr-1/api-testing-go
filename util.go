@@ -1,18 +1,18 @@
 package main
 
 import (
-	"math/rand"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 
 	"github.com/brianvoe/gofakeit/v6"
 )
 
 type User struct {
-	Nome string `json:"nome"`
-	Email string `json:"email"`
-	Password string `json:"password"`
+	Nome          string `json:"nome"`
+	Email         string `json:"email"`
+	Password      string `json:"password"`
 	Administrador string `json:"administrador"`
 }
 
@@ -35,9 +35,9 @@ func SaveData(resp *http.Response, data *map[string]interface{}) {
 
 func GenerateID(length int) string {
 	var possibleCharacters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789")
-    b := make([]rune, length)
-    for i := 0; i < length; i++ {
-        b[i] = possibleCharacters[rand.Intn(len(possibleCharacters))]
-    }
-    return string(b)
+	b := make([]rune, length)
+	for i := 0; i < length; i++ {
+		b[i] = possibleCharacters[rand.Intn(len(possibleCharacters))]
+	}
+	return string(b)
 }
